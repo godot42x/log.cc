@@ -11,8 +11,7 @@
 
 #include "level.h"
 
-#include <microshit_api_log.h>
-#include <vcruntime.h>
+#include "microshit_api_log.h"
 
 
 namespace __top_level_namespace {
