@@ -33,13 +33,14 @@ void LOG_API inline log_compat(LogLevel          level,
     {
         auto color = get_terminal_color(level);
 
+
         try {
             if (level < LogLevel::L_WARN) {
-                auto out = fmt::format("{}[{}] '{}' {} | {} \n", color, LogLevelStrings[(int)level], function_name, time, msg);
+                auto out = fmt::format("{}[{}] '{}' {} | {} \n", color, LogLevelStrings.at(level), function_name, time, msg);
                 std::cout << out;
             }
             else {
-                auto out = fmt::format("{}[{}] {} | {}:{} | '{}' | {}\n", color, LogLevelStrings[(int)level], time,
+                auto out = fmt::format("{}[{}] {} | {}:{} | '{}' | {}\n", color, LogLevelStrings.at(level), time,
                                        file_name, line, /*column*/ function_name,
                                        msg);
                 std::cerr << out;
@@ -141,4 +142,5 @@ void LOG_API log(LogLevel                                        level,
 #define DEBUG(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_DEBUG, __VA_ARGS__)
 #define WARN(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_WARN, __VA_ARGS__)
 #define LOG_ERROR(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_ERROR, __VA_ARGS__)
+#define LOG_PURE_ERROR(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_PURE_ERROR, __VA_ARGS__)
 #define LOG_FATAL(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_FATAL, __VA_ARGS__)

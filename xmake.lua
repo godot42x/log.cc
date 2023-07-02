@@ -2,9 +2,12 @@
 add_requires("fmt")
 add_packages("fmt")
 
+-- Add this to top_level xmake if msvc
 if is_os("windows") then
 	add_cxxflags("/Zc:preprocessor")
 end
+
+add_includedirs()
 
 target("m_log")
 	set_kind("shared")
@@ -16,6 +19,8 @@ target("m_log")
 	end
 
 	--add_cxxflags("-std=c++20")
+
+	add_includedirs(".")
 
 
 	add_headerfiles("*.h")
