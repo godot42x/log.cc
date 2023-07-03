@@ -21,7 +21,6 @@ namespace __top_level_namespace {
 #include "fmt/format.h"
 
 
-
 void LOG_API inline log_compat(LogLevel          level,
                                const char       *time,
                                char const       *file_name,
@@ -137,10 +136,10 @@ void LOG_API log(LogLevel                                        level,
 
 
 
-#define LOG(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_LOG, __VA_ARGS__)
-#define TRACE(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_TRACE, __VA_ARGS__)
-#define DEBUG(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_DEBUG, __VA_ARGS__)
-#define WARN(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_WARN, __VA_ARGS__)
+#define LOG_LOG(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_LOG, __VA_ARGS__)
+#define LOG_TRACE(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_TRACE, __VA_ARGS__)
+#define LOG_DEBUG(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_DEBUG, __VA_ARGS__)
+#define LOG_WARN(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_WARN, __VA_ARGS__)
 #define LOG_ERROR(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_ERROR, __VA_ARGS__)
 #define LOG_PURE_ERROR(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_PURE_ERROR, __VA_ARGS__)
 #define LOG_FATAL(...) __FORMAT_LOG(__top_level_namespace::LogLevel::L_FATAL, __VA_ARGS__)
