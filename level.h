@@ -73,6 +73,8 @@ inline auto get_terminal_color(LogLevel level)
         color = TerminalColor["cyan"];
         break;
     case LogLevel::L_TRACE:
+        color = TerminalColor["white"];
+        break;
     case LogLevel::L_LOG:
         color = TerminalColor["green"];
         break;
