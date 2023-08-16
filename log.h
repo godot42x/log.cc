@@ -41,9 +41,11 @@ void LOG_API inline log_compat(LogLevel          level,
             else {
                 auto out = fmt::format("{}[{}] {} | {}:{} | '{}' | {}\n", color, LogLevelStrings.at(level), time,
                                        file_name, line, /*column*/ function_name,
-                                       msg);
+                                       msg );
                 std::cerr << out;
             }
+            std::cout<< TerminalColor["reset"];
+
         }
         catch (fmt::format_error &e) {
             std::cerr << fmt::format("Format failed at {}:{} | {}", file_name, line, e.what()) << std::endl;
