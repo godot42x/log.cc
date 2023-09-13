@@ -1,3 +1,5 @@
+
+--print("Check if did not add 'fmt' packages in your toplevel xmake.lua")
 add_requires("fmt")
 add_packages("fmt")
 
@@ -15,6 +17,7 @@ target("m_log")
 
     add_packages("fmt")
     on_config(function(target)
+
         if is_host("window") then
             -- Check if the /Zc:preprocessor flag is not added
             if not target:has_cxxflags("/Zc:preprocessor") then
