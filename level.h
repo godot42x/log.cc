@@ -23,10 +23,11 @@ namespace __top_level_namespace {
 
 enum class LogLevel : int
 {
-
     L_DEBUG = 5,
+
     L_TRACE = 10,
-    L_LOG   = 15,
+
+    L_LOG = 15,
 
     L_PURE_ERROR = 19,
 
