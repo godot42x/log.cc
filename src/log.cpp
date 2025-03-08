@@ -1,7 +1,8 @@
 
-#include "log.h"
+#include "log.cc/log.h"
 
-namespace __top_level_namespace {
+namespace __top_level_namespace
+{
 
 #if 1
 
@@ -39,8 +40,8 @@ namespace __top_level_namespace {
 // }
 
 #else
-#include <format>
-#include <source_location>
+    #include <format>
+    #include <source_location>
 
 #endif
 
