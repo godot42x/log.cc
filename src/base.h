@@ -13,5 +13,5 @@
 
 
 #ifndef __top_level_namespace
-    #define __top_level_namespace logcpp
+    #define __top_level_namespace logcc
 #endif

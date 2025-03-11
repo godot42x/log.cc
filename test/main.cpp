@@ -1,29 +1,51 @@
 #include "log.cc/log.h"
 
+#include <format>
+
+#define FMT(fmt, ...) std::format(fmt __VA_OPT__(, )##__VA_ARGS__)
+
 int main()
 {
+
     using namespace __top_level_namespace;
 
-    log(LogLevel::Debug, "test");
-    log(LogLevel::Trace, "test");
-    log(LogLevel::Info, "test");
-    log(LogLevel::Warn, "test");
-    log(LogLevel::Error, "test");
-    log(LogLevel::Fatal, "test");
+    Logger *logger = LoggerFactory()
+                         .setOuputToStdOut(true)
+                         .addAppender("test.log")
+                         .create();
 
-    log(LogLevel::Debug, FMT("test {}", 1));
-    log(LogLevel::Trace, FMT("test {}", 2));
-    log(LogLevel::Info, FMT("test {}", 3));
-    log(LogLevel::Warn, FMT("test {}", 4));
-    log(LogLevel::Error, FMT("test {}", 5));
-    log(LogLevel::Fatal, FMT("test {}", 6));
+    logger->runWorker();
+    printf("123\n");
 
-    logWithCategory(LogLevel::Debug, "test", "test");
-    logWithCategory(LogLevel::Trace, "test", "test");
-    logWithCategory(LogLevel::Info, "test", "test");
-    logWithCategory(LogLevel::Warn, "test", "test");
-    logWithCategory(LogLevel::Error, "test", "test");
-    logWithCategory(LogLevel::Fatal, "test", "test");
 
+    logger->log(LogLevel::Debug, "test");
+    logger->log(LogLevel::Trace, "test");
+    logger->log(LogLevel::Info, "test");
+    logger->log(LogLevel::Warn, "test");
+    logger->log(LogLevel::Error, "test");
+    logger->log(LogLevel::Fatal, "test");
+
+    logger->log(LogLevel::Debug, std::format("test {}", 1));
+
+    logger->log(LogLevel::Debug, FMT("test 2 {}", 1));
+    logger->log(LogLevel::Trace, FMT("test 2 {}", 2));
+    logger->log(LogLevel::Info, FMT("test 2 {}", 3));
+    logger->log(LogLevel::Warn, FMT("test 2 {}", 4));
+    logger->log(LogLevel::Error, FMT("test 2 {}", 5));
+    logger->log(LogLevel::Fatal, FMT("test 2 {}", 6));
+
+
+    logger->config.setLogDetailLevel(LogLevel::Debug);
+
+    logger->logWithCategory(LogLevel::Debug, "test", "test");
+    logger->logWithCategory(LogLevel::Trace, "test", "test");
+    logger->logWithCategory(LogLevel::Info, "test", "test");
+    logger->logWithCategory(LogLevel::Warn, "test", "test");
+    logger->logWithCategory(LogLevel::Error, "test", "test");
+    logger->logWithCategory(LogLevel::Fatal, "test", "test");
+
+
+
+    delete logger;
     return 0;
 }

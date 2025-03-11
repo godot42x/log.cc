@@ -5,19 +5,22 @@
 #include <cassert>
 #include <iostream>
 #include <map>
+#include <mutex>
+#include <queue>
 #include <source_location>
 
-#include <array>
-#include <format>
+#include <fstream>
 #include <unordered_map>
+
 
 
 #include "../base.h"
 
-#define FMT(fmt, ...) (std::format(fmt __VA_OPT__(, )##__VA_ARGS__))
 
 namespace __top_level_namespace
 {
+
+
 
 namespace LogLevel
 {
@@ -31,43 +34,8 @@ enum T
     Fatal = 600,
 };
 
-std::string_view toString(LogLevel::T level)
-{
-    switch (level) {
-    case Debug:
-        return "Debug";
-    case Trace:
-        return "Trace";
-    case Info:
-        return "Info";
-    case Warn:
-        return "Warn";
-    case Error:
-        return "Error";
-    case Fatal:
-        return "Fatal";
-    }
-    assert(false);
-    return "Unknown";
-}
+extern std::string_view toString(LogLevel::T level);
 
-const inline std::unordered_map<LogLevel::T, std::string> logLevel2Strings = {
-    {LogLevel::Debug, "DEBUG"},
-    {LogLevel::Trace, "TRACE"},
-    {LogLevel::Info, "Info"},
-    {LogLevel::Warn, "WARN"},
-    {LogLevel::Error, "ERROR"},
-    {LogLevel::Fatal, "FATAL"},
-};
-
-const inline std::unordered_map<LogLevel::T, std::string> logLevel2CompatLevelStrings = {
-    {LogLevel::Debug, "D"},
-    {LogLevel::Trace, "T"},
-    {LogLevel::Info, "I"},
-    {LogLevel::Warn, "W"},
-    {LogLevel::Error, "E"},
-    {LogLevel::Fatal, "F"},
-};
 
 enum ETerminalColor
 {
@@ -82,153 +50,234 @@ enum ETerminalColor
     ColorCount,
 };
 
-
-
-inline const std::unordered_map<ETerminalColor, std::string> color2TerminalColor = {
-    {ETerminalColor::Reset, "\033[0m"},
-    {ETerminalColor::White, "\033[37m"},
-    {ETerminalColor::Green, "\033[32m"},
-    {ETerminalColor::Magenta, "\033[35m"},
-    {ETerminalColor::Cyan, "\033[36m"},
-    {ETerminalColor::Blue, "\033[34m"},
-    {ETerminalColor::Yellow, "\033[33m"},
-    {ETerminalColor::Red, "\033[31m"},
-};
-
-inline const std::unordered_map<LogLevel::T, ETerminalColor> level2TerminalColor = {
-    {LogLevel::Debug, ETerminalColor::Cyan},
-    {LogLevel::Trace, ETerminalColor::White},
-    {LogLevel::Info, ETerminalColor::Green},
-    {LogLevel::Warn, ETerminalColor::Yellow},
-    {LogLevel::Error, ETerminalColor::Red},
-    {LogLevel::Fatal, ETerminalColor::Red},
-};
-
-template <typename K, typename V>
-const V &unsafeConstMapGet(const std::unordered_map<K, V> &from, const K &k)
-{
-    const auto &it = from.find(k);
-    return it->second;
-}
-template <typename K, typename V>
-const V &unsafeConstMapGet(const std::map<K, V> &from, const K &k)
-{
-    const auto &it = from.find(k);
-    return it->second;
-}
-
-inline const std::unordered_map<LogLevel::T, std::string> level2TerminalColorStr = {
-    {LogLevel::Debug, unsafeConstMapGet(color2TerminalColor, unsafeConstMapGet(level2TerminalColor, LogLevel::Debug))},
-    {LogLevel::Trace, unsafeConstMapGet(color2TerminalColor, unsafeConstMapGet(level2TerminalColor, LogLevel::Trace))},
-    {LogLevel::Info, unsafeConstMapGet(color2TerminalColor, unsafeConstMapGet(level2TerminalColor, LogLevel::Info))},
-    {LogLevel::Warn, unsafeConstMapGet(color2TerminalColor, unsafeConstMapGet(level2TerminalColor, LogLevel::Warn))},
-    {LogLevel::Error, unsafeConstMapGet(color2TerminalColor, unsafeConstMapGet(level2TerminalColor, LogLevel::Error))},
-    {LogLevel::Fatal, unsafeConstMapGet(color2TerminalColor, unsafeConstMapGet(level2TerminalColor, LogLevel::Fatal))},
-};
+extern const std::unordered_map<LogLevel::T, std::string>    logLevel2Strings;            // LogLevel::Debug -> "DEBUG"
+extern const std::unordered_map<LogLevel::T, std::string>    logLevel2CompatLevelStrings; // LogLevel::Debug -> "D"
+extern const std::unordered_map<ETerminalColor, std::string> color2TerminalColorCode;     // ETerminalColor::Reset -> "\033[0m"
+extern const std::unordered_map<LogLevel::T, ETerminalColor> level2TerminalColor;         // LogLevel::Debug -> ETerminalColor::Green
+extern const std::unordered_map<LogLevel::T, std::string>    level2TerminalColorCode;     // LogLevel::Debug -> "\033[32m"
 
 
 }; // namespace LogLevel
 
-static LogLevel::T logLevel       = LogLevel::Debug;
-static LogLevel::T logDetailLevel = LogLevel::Warn; // With source location
 
 
-static const std::string_view resetColor = LogLevel::unsafeConstMapGet(LogLevel::color2TerminalColor, LogLevel::ETerminalColor::Reset);
-
-
-LOG_CC_API inline void log(LogLevel::T          level,
-                           std::string_view     msg,
-                           std::source_location location = std::source_location::current())
+struct MessageQueue
 {
-    if (level < logLevel) {
-        return;
+    std::queue<std::string> queue;
+    std::mutex              mutex;
+    std::condition_variable conditionVar;
+    bool                    bShutdown = false;
+
+  public:
+    void push(std::string_view msg)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        queue.emplace(msg);
+        // printf("push msg: %s\n", queue.back().c_str());
+        conditionVar.notify_one();
     }
-    std::string      output;
-    std::string_view levelStr = LogLevel::toString(level);
-    output.resize(1024);
 
+    bool pop(std::string &msg)
+    {
+        std::unique_lock<std::mutex> lock(mutex); // this will lock automatically?
+        lock.lock();
+        conditionVar.wait(lock, [this]() {
+            printf("queue size: %zu\n, bShutdown: %d", queue.size(), bShutdown);
+            return !queue.empty() || bShutdown;
+        });
+        if (bShutdown && queue.empty()) {
+            return false;
+        }
 
-    // color
-    std::string_view color = LogLevel::unsafeConstMapGet(LogLevel::level2TerminalColorStr, level);
+        // why? save it to file
+        while (bShutdown && !queue.empty()) {
+            msg = queue.front();
+            queue.pop();
+            return false;
+        }
 
-
-    // clang-format off
-    if (level >= logDetailLevel) {
-        // TODO: custom format, let user define a macro?
-        // [error] a/b/c/e.cpp:12:5 fooFunction: what msg
-        output = FMT(
-            "{}[{}]\t"
-                "{}:{}:{} "
-                "[{}]: "
-                "{}"
-                "{}\n",
-                color, levelStr,
-                location.file_name(), location.line(), location.column(),
-                location.function_name(),
-                msg,
-                resetColor);
-
+        msg = queue.front();
+        queue.pop();
+        return true;
     }
-    else {
-        // [error] : what msg
-        output = FMT(
-            "{}[{}]\t"
-                "{}"
-                "{}\n",
-                color, levelStr,
-                msg,
-                resetColor);
+
+    void shutdown()
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        bShutdown = true;
+        conditionVar.notify_all();
     }
-    // clang-format on
-    std::cout << output;
-}
+};
 
-
-
-LOG_CC_API inline void logWithCategory(LogLevel::T      level,
-                                       std::string_view category, std::string_view msg,
-                                       std::source_location location = std::source_location::current())
+struct LOG_CC_API Config
 {
-    if (level < logLevel) {
-        return;
+    LogLevel::T logLevel       = LogLevel::Debug;
+    LogLevel::T logDetailLevel = LogLevel::Warn; // With source location
+
+    void setLogLevel(LogLevel::T level);
+    void setLogDetailLevel(LogLevel::T level);
+
+    static Config *get()
+    {
+        static Config config;
+        return &config;
     }
-    std::string      output;
-    std::string_view levelStr = LogLevel::toString(level);
-    output.resize(1024);
+};
 
-    // color
-    std::string_view color = LogLevel::unsafeConstMapGet(LogLevel::level2TerminalColorStr, level);
 
-    // clang-format off
-    // TODO: make a sub string constant, like categoryStr not need to be format at each time.
-    if (level >= logDetailLevel) {
-        output = FMT(
-            "{}[{}]\t{}\t"
-                "{}:{}:{} "
-                "[{}]: "
-                "{}"
-                "{}\n",
-                color, levelStr, category,
-                location.file_name(), location.line(), location.column(),
-                location.function_name(),
-                msg,
-                resetColor);
+
+enum class LogDetailFlags
+{
+    time     = 0 << 0,
+    file     = 0 << 1,
+    line     = 0 << 2,
+    func     = 0 << 3,
+    category = 0 << 4,
+    level    = 0 << 5,
+    msg      = 0 << 6,
+};
+
+struct LogAppender
+{
+    std::string   filename;
+    std::ofstream fileStream;
+};
+
+struct LOG_CC_API Logger
+{
+    MessageQueue      msgQueue;
+    std::atomic<bool> bExit;
+    std::thread       workerThread;
+
+    Config                   config;
+    std::vector<LogAppender> appenders;
+    bool                     bToStdOut = false;
+
+
+
+    Logger() = default;
+
+    ~Logger()
+    {
+        bExit = true;
+        msgQueue.shutdown();
+        msgQueue.conditionVar.notify_all();
+        if (workerThread.joinable()) {
+            workerThread.join();
+        }
+        for (auto &appender : appenders) {
+            if (appender.fileStream.is_open()) {
+                appender.fileStream.close();
+            }
+        }
     }
-    else {
-        // (color)LogRender [error] : what msg(reset color)\n
-        output = FMT(
-            "{}[{}] {}"
-                "{}"
-                "{}\n",
-                color, levelStr, category,
-                msg,
-                resetColor);
+
+    void runWorker()
+    {
+        // std::format("{}", 123);
+        static constexpr int                                      flushIntervalSec = 10;
+        static std::chrono::time_point<std::chrono::system_clock> last             = std::chrono::system_clock::now();
+
+        workerThread = std::thread([this]() {
+            std::string msg;
+            while (msgQueue.pop(msg)) {
+                printf("pop msg: %s\n", msg.c_str());
+                for (auto &appender : appenders) {
+                    appender.fileStream << msg.data();
+                }
+                int gap = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - last).count();
+                if (gap >= flushIntervalSec) {
+                    for (auto &appender : appenders) {
+                        appender.fileStream.flush();
+                    }
+                    last = std::chrono::system_clock::now();
+                    printf("flush %d\n", gap);
+                }
+            }
+        });
     }
-    // clang-format on
 
-    std::cout << output;
-}
+    // TODO: custom format string to pass -> need a non const formatter?
+    void log(LogLevel::T level, std::string_view msg, std::source_location location = std::source_location::current());
+    void logWithCategory(LogLevel::T level, std::string_view category, std::string_view msg, std::source_location location = std::source_location::current());
 
 
+    bool addAppender(const char *filename)
+    {
+        std::ofstream fileStream(filename, std::ios::out | std::ios::app);
+        if (!fileStream.is_open()) {
+            throw std::runtime_error("failed to open file");
+            return false;
+        }
+        appenders.push_back({
+            .filename   = filename,
+            .fileStream = std::move(fileStream),
+        });
+        // printf("add appender: %s\n", filename);
+        return true;
+    }
+
+
+
+  private:
+    void doLog(LogLevel::T level, std::string_view msg);
+};
+
+
+struct LOG_CC_API LoggerFactory
+{
+
+    using Self = LoggerFactory;
+
+    Logger *product = nullptr;
+
+    LoggerFactory()
+    {
+        product = new Logger;
+    }
+    ~LoggerFactory()
+    {
+        if (product) {
+            delete product;
+        }
+    }
+
+
+    Self &addAppender(const char *filename)
+    {
+        product->addAppender(filename);
+        return *this;
+    }
+
+    Self &setOuputToStdOut(bool bToStdOut)
+    {
+        product->bToStdOut = bToStdOut;
+        return *this;
+    }
+
+    Logger *create()
+    {
+        Logger *that = product;
+        product      = nullptr;
+        return that;
+    }
+};
+
+
+struct debug
+{
+    std::ostream &out = std::cout;
+
+    debug &operator,(auto msg)
+    {
+        out << msg << '\n';
+        return *this;
+    }
+
+    ~debug()
+    {
+        out << '\n';
+    }
+};
 
 }; // namespace __top_level_namespace
