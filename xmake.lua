@@ -19,7 +19,7 @@ do
                 '${yellow}' ..
                 '[WARNING] This project/package/plugin which name is [' .. target:name() .. ']' ..
                 'Just add "/Zc:preprocessor" to the whole compiler environment\n' ..
-                '\tBecause you maybe use the msvc.'..
+                '\tBecause you maybe use the msvc.' ..
                 'And the __VA_OPT__ is required by this flag...'
             )
 

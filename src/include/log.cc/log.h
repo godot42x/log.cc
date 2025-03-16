@@ -3,10 +3,13 @@
 // #include "level.h"
 
 #include <cassert>
+#include <chrono>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <source_location>
 
 #include <fstream>
@@ -15,74 +18,74 @@
 
 
 #include "../base.h"
+#include "log_level.h"
+
 
 
 namespace __top_level_namespace
 {
 
 
-
-namespace LogLevel
+inline std::string getCurentTimeStr()
 {
-enum T
-{
-    Debug = 100,
-    Trace = 200,
-    Info  = 300,
-    Warn  = 400,
-    Error = 500,
-    Fatal = 600,
-};
+    auto now = std::chrono::zoned_time{
+        std::chrono::current_zone(),
+        std::chrono::system_clock::now(),
+    };
 
-extern std::string_view toString(LogLevel::T level);
+    return std::format("{:%Y-%m-%d %H:%M:%S}", now);
+}
 
 
-enum ETerminalColor
-{
-    Reset = 0,
-    White,
-    Green,
-    Magenta,
-    Cyan,
-    Blue,
-    Yellow,
-    Red,
-    ColorCount,
-};
-
-extern const std::unordered_map<LogLevel::T, std::string>    logLevel2Strings;            // LogLevel::Debug -> "DEBUG"
-extern const std::unordered_map<LogLevel::T, std::string>    logLevel2CompatLevelStrings; // LogLevel::Debug -> "D"
-extern const std::unordered_map<ETerminalColor, std::string> color2TerminalColorCode;     // ETerminalColor::Reset -> "\033[0m"
-extern const std::unordered_map<LogLevel::T, ETerminalColor> level2TerminalColor;         // LogLevel::Debug -> ETerminalColor::Green
-extern const std::unordered_map<LogLevel::T, std::string>    level2TerminalColorCode;     // LogLevel::Debug -> "\033[32m"
-
-
-}; // namespace LogLevel
-
-
+struct Logger;
 
 struct MessageQueue
 {
-    std::queue<std::string> queue;
+    struct Elem
+    {
+        LogLevel::T level;
+        std::string msg;
+    };
+
+    std::queue<Elem>        queue;
     std::mutex              mutex;
-    std::condition_variable conditionVar;
+    std::condition_variable cv;
     bool                    bShutdown = false;
 
   public:
-    void push(std::string_view msg)
+
+
+    void push(std::string_view msg, LogLevel::T level = LogLevel::Info)
     {
         std::lock_guard<std::mutex> lock(mutex);
-        queue.emplace(msg);
-        // printf("push msg: %s\n", queue.back().c_str());
-        conditionVar.notify_one();
+        queue.emplace(Elem{
+            .level = level,
+            .msg   = std::string(msg),
+        });
+        cv.notify_one();
+    }
+    void push(std::string &&msg, LogLevel::T level = LogLevel::Info)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        queue.emplace(Elem{
+            .level = level,
+            .msg   = std::move(msg),
+        });
+        cv.notify_one();
     }
 
-    bool pop(std::string &msg)
+    void push(Elem &&elem)
     {
-        std::unique_lock<std::mutex> lock(mutex); // this will lock automatically?
-        lock.lock();
-        conditionVar.wait(lock, [this]() {
-            printf("queue size: %zu\n, bShutdown: %d", queue.size(), bShutdown);
+        std::lock_guard<std::mutex> lock(mutex);
+        queue.emplace(std::move(elem));
+        cv.notify_one();
+    }
+
+    bool pop(Elem &elem)
+    {
+        std::unique_lock<std::mutex> lock(mutex); // this will lock automatically! double lock cause a error
+        cv.wait(lock, [this]() {
+            // printf("queue size: %zu, bShutdown: %d", queue.size(), bShutdown);
             return !queue.empty() || bShutdown;
         });
         if (bShutdown && queue.empty()) {
@@ -91,21 +94,22 @@ struct MessageQueue
 
         // why? save it to file
         while (bShutdown && !queue.empty()) {
-            msg = queue.front();
+            elem = queue.front();
             queue.pop();
             return false;
         }
 
-        msg = queue.front();
+        elem = std::move(queue.front());
         queue.pop();
         return true;
     }
+
 
     void shutdown()
     {
         std::lock_guard<std::mutex> lock(mutex);
         bShutdown = true;
-        conditionVar.notify_all();
+        cv.notify_all();
     }
 };
 
@@ -116,150 +120,210 @@ struct LOG_CC_API Config
 
     void setLogLevel(LogLevel::T level);
     void setLogDetailLevel(LogLevel::T level);
+};
 
-    static Config *get()
+
+
+struct ConsoleAppender
+{
+    std::ostream &out = std::cout;
+
+    void operator()(const MessageQueue::Elem &elem)
     {
-        static Config config;
-        return &config;
+        static const std::string_view resetColor = LogLevel::color2TerminalColorCode.find(LogLevel::ETerminalColor::Reset)->second;
+        const std::string_view        color      = LogLevel::level2TerminalColorCode.find(elem.level)->second;
+        out << color << elem.msg << resetColor;
     }
 };
 
-
-
-enum class LogDetailFlags
-{
-    time     = 0 << 0,
-    file     = 0 << 1,
-    line     = 0 << 2,
-    func     = 0 << 3,
-    category = 0 << 4,
-    level    = 0 << 5,
-    msg      = 0 << 6,
-};
-
-struct LogAppender
+struct FileAppender
 {
     std::string   filename;
     std::ofstream fileStream;
+
+    FileAppender(FileAppender &&other)
+    {
+        filename   = std::move(other.filename);
+        fileStream = std::move(other.fileStream);
+    }
+
+    FileAppender(std::string_view filename)
+    {
+        this->filename = std::string(filename);
+        fileStream     = std::ofstream(std::string(filename), std::ios::out | std::ios::app);
+    }
+
+    void operator()(const MessageQueue::Elem &elem)
+    {
+        fileStream << elem.msg;
+    }
+    void flush()
+    {
+        fileStream.flush();
+    }
+
+    ~FileAppender()
+    {
+        fileStream.close();
+    }
 };
 
-struct LOG_CC_API Logger
+
+
+struct LOG_CC_API DefaultFormatter
 {
-    MessageQueue      msgQueue;
-    std::atomic<bool> bExit;
-    std::thread       workerThread;
+    bool operator()(const Config &config, std::string &output, LogLevel::T level, std::string_view msg, const std::source_location &location);
+};
 
-    Config                   config;
-    std::vector<LogAppender> appenders;
-    bool                     bToStdOut = false;
+struct LOG_CC_API CategoryFormatter
+{
+    std::string category;
 
-
-
-    Logger() = default;
-
-    ~Logger()
+    bool operator()(const Config &config, std::string &output, LogLevel::T level, std::string_view msg, const std::source_location &location)
     {
-        bExit = true;
+        std::string_view levelStr = LogLevel::toString(level);
+
+
+        // clang-format off
+        if (level >= config.logDetailLevel) {
+            output = std::format(
+                "[{}]\t{}\t"
+                    "{}:{}:{} "
+                    "[{}]: "
+                    "{}\n",
+                    levelStr, category,
+                    location.file_name(), location.line(), location.column(),
+                    location.function_name(),
+                    msg);
+        }
+        else {
+            // (color)LogRender [error] : what msg(reset color)\n
+            output = std::format(
+                "[{}] {}"
+                    "{}\n",
+                    levelStr, category,
+                    msg);
+        }
+        // clang-format on
+
+        return true;
+    }
+};
+
+
+struct LogCore
+{
+    std::vector<FileAppender> fileAppenders;
+    ConsoleAppender           consoleAppender;
+
+    std::thread  workerThread;
+    MessageQueue msgQueue;
+
+
+    void internalLog(std::string_view msg)
+    {
+        std::cout << "log.cc LogProcessor " << msg << '\n';
+    }
+
+    ~LogCore()
+    {
         msgQueue.shutdown();
-        msgQueue.conditionVar.notify_all();
         if (workerThread.joinable()) {
             workerThread.join();
         }
-        for (auto &appender : appenders) {
-            if (appender.fileStream.is_open()) {
-                appender.fileStream.close();
-            }
-        }
     }
 
-    void runWorker()
+    void run()
     {
         // std::format("{}", 123);
-        static constexpr int                                      flushIntervalSec = 10;
-        static std::chrono::time_point<std::chrono::system_clock> last             = std::chrono::system_clock::now();
+        static constexpr int flushIntervalSec = 10;
 
-        workerThread = std::thread([this]() {
-            std::string msg;
-            while (msgQueue.pop(msg)) {
-                printf("pop msg: %s\n", msg.c_str());
-                for (auto &appender : appenders) {
-                    appender.fileStream << msg.data();
+        auto flushTask = [this]() {
+            static auto last = std::chrono::system_clock::now();
+            int         gap  = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - last).count();
+            if (gap >= flushIntervalSec) {
+                for (auto &fileAppender : fileAppenders) {
+                    fileAppender.flush();
+                    internalLog(std::format(" {} log thread flushed {} , gap: {}\n", getCurentTimeStr(), fileAppender.filename, gap));
                 }
-                int gap = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - last).count();
-                if (gap >= flushIntervalSec) {
-                    for (auto &appender : appenders) {
-                        appender.fileStream.flush();
-                    }
-                    last = std::chrono::system_clock::now();
-                    printf("flush %d\n", gap);
+                last = std::chrono::system_clock::now();
+            }
+        };
+
+
+        workerThread = std::thread([this, flushTask]() {
+            static MessageQueue::Elem elem;
+            while (msgQueue.pop(elem)) {
+                // internalLog(std::format("pop msg:{} \n", elem.msg.c_str()));
+                for (auto &fileAppender : fileAppenders) {
+                    fileAppender(elem);
                 }
+
+                consoleAppender(elem);
+
+                flushTask();
             }
         });
     }
 
-    // TODO: custom format string to pass -> need a non const formatter?
-    void log(LogLevel::T level, std::string_view msg, std::source_location location = std::source_location::current());
-    void logWithCategory(LogLevel::T level, std::string_view category, std::string_view msg, std::source_location location = std::source_location::current());
-
-
-    bool addAppender(const char *filename)
+    void push(std::string &&msg, LogLevel::T level = LogLevel::Info)
     {
-        std::ofstream fileStream(filename, std::ios::out | std::ios::app);
-        if (!fileStream.is_open()) {
-            throw std::runtime_error("failed to open file");
-            return false;
-        }
-        appenders.push_back({
-            .filename   = filename,
-            .fileStream = std::move(fileStream),
-        });
-        // printf("add appender: %s\n", filename);
-        return true;
+        msgQueue.push(std::move(msg), level);
     }
 
-
-
-  private:
-    void doLog(LogLevel::T level, std::string_view msg);
+    void addFileAppender(std::string_view filename)
+    {
+        // auto ap = FileAppender(filename);
+        // fileAppenders.push_back(std::move(ap));
+        fileAppenders.emplace_back(filename);
+    }
 };
 
 
-struct LOG_CC_API LoggerFactory
+
+struct LOG_CC_API Logger
 {
+    std::shared_ptr<LogCore> logCore;
+    Config                   config;
 
-    using Self = LoggerFactory;
 
-    Logger *product = nullptr;
+    using formatter_t     = std::function<bool(const Config &config, std::string &output, LogLevel::T, std::string_view, const std::source_location &)>;
+    formatter_t formatter = nullptr;
 
-    LoggerFactory()
+
+    Logger(std::shared_ptr<LogCore> logCore)
     {
-        product = new Logger;
-    }
-    ~LoggerFactory()
-    {
-        if (product) {
-            delete product;
+        this->logCore = logCore;
+        if (!formatter) {
+            formatter = DefaultFormatter{};
         }
     }
 
 
-    Self &addAppender(const char *filename)
+    void setFormatter(formatter_t formatter_)
     {
-        product->addAppender(filename);
-        return *this;
+        formatter = formatter_;
     }
 
-    Self &setOuputToStdOut(bool bToStdOut)
+
+    void log(LogLevel::T level, std::string_view msg, std::source_location location = std::source_location::current())
     {
-        product->bToStdOut = bToStdOut;
-        return *this;
+        if (level < config.logLevel) {
+            return;
+        }
+        std::string output(512, '\0');
+        if (formatter(config, output, level, msg, location)) {
+            logCore->push(std::move(output), level);
+        }
     }
 
-    Logger *create()
+
+  protected:
+
+
+    void internalLog(std::string_view msg)
     {
-        Logger *that = product;
-        product      = nullptr;
-        return that;
+        std::cout << "log.cc Logger " << msg << '\n';
     }
 };
 
@@ -279,5 +343,6 @@ struct debug
         out << '\n';
     }
 };
+
 
 }; // namespace __top_level_namespace
