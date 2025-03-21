@@ -15,3 +15,39 @@
 #ifndef __top_level_namespace
     #define __top_level_namespace logcc
 #endif
+
+#define TOP_LEVEL_NAMESPACE_BEGIN   \
+    namespace __top_level_namespace \
+    {
+#define TOP_LEVEL_NAMESPACE_END } // namespace __top_level_namespace
+
+
+
+#include <iostream>
+#include <source_location>
+
+struct LOG_CC_API debug
+
+{
+    std::ostream &out = std::cout;
+
+    debug(std::string_view sig = "-", std::source_location location = std::source_location::current())
+    {
+#if NDEBUG
+        out << sig << ' ';
+#else
+        out << sig << ' ' << location.file_name() << ':' << location.line() << ' ';
+#endif
+    }
+
+    debug &operator,(auto msg)
+    {
+        out << msg << ' ';
+        return *this;
+    }
+
+    ~debug()
+    {
+        out << '\n';
+    }
+};

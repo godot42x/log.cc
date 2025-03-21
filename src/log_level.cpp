@@ -1,9 +1,8 @@
-#include "log.cc/log_level.h"
+#include "log_level.h"
 #include <cassert>
 
 
-namespace __top_level_namespace
-{
+TOP_LEVEL_NAMESPACE_BEGIN
 
 namespace LogLevel
 {
@@ -88,4 +87,4 @@ const std::unordered_map<LogLevel::T, std::string> level2TerminalColorCode = {
 } // namespace LogLevel
 
 
-} // namespace __top_level_namespace
+TOP_LEVEL_NAMESPACE_END

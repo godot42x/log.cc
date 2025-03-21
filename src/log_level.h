@@ -8,8 +8,7 @@
 
 
 
-namespace __top_level_namespace
-{
+TOP_LEVEL_NAMESPACE_BEGIN
 
 
 
@@ -50,4 +49,4 @@ LOG_CC_API extern const std::unordered_map<LogLevel::T, std::string>    level2Te
 
 }; // namespace LogLevel
 
-} // namespace __top_level_namespace
+TOP_LEVEL_NAMESPACE_END
