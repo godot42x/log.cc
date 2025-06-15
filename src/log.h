@@ -30,61 +30,6 @@ TOP_LEVEL_NAMESPACE_BEGIN
 extern std::string LOG_CC_API getCurentTimeStr();
 
 
-struct MessageElem
-{
-    LogLevel::T level;
-    std::string msg;
-};
-
-struct MessageQueue
-{
-
-
-    std::queue<MessageElem> queue;
-    std::mutex              mutex;
-    std::condition_variable cv;
-    bool                    bShutdown = false;
-
-  public:
-
-    void push(MessageElem &&elem)
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        queue.emplace(std::move(elem));
-        cv.notify_one();
-    }
-
-    bool pop(MessageElem &elem)
-    {
-        std::unique_lock<std::mutex> lock(mutex); // this will lock automatically! double lock cause a error
-        cv.wait(lock, [this]() {
-            // printf("queue size: %zu, bShutdown: %d", queue.size(), bShutdown);
-            return !queue.empty() || bShutdown;
-        });
-        if (bShutdown && queue.empty()) {
-            return false;
-        }
-
-        // why? save it to file
-        while (bShutdown && !queue.empty()) {
-            elem = queue.front();
-            queue.pop();
-            return false;
-        }
-
-        elem = std::move(queue.front());
-        queue.pop();
-        return true;
-    }
-
-
-    void shutdown()
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        bShutdown = true;
-        cv.notify_all();
-    }
-};
 
 struct LOG_CC_API Config
 {
@@ -96,6 +41,11 @@ struct LOG_CC_API Config
 };
 
 
+struct MessageElem
+{
+    LogLevel::T level;
+    std::string msg;
+};
 
 struct ConsoleAppender
 {
@@ -185,6 +135,59 @@ struct LOG_CC_API CategoryFormatter
     bool operator()(const Config &config, std::string &output, LogLevel::T level, std::string_view msg, const std::source_location &location);
 };
 
+//----------------------
+#pragma region Async Log
+
+
+struct MessageQueue
+{
+
+
+    std::queue<MessageElem> queue;
+    std::mutex              mutex;
+    std::condition_variable cv;
+    bool                    bShutdown = false;
+
+  public:
+
+    void push(MessageElem &&elem)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        queue.emplace(std::move(elem));
+        cv.notify_one();
+    }
+
+    bool pop(MessageElem &elem)
+    {
+        std::unique_lock<std::mutex> lock(mutex); // this will lock automatically! double lock cause a error
+        cv.wait(lock, [this]() {
+            // printf("queue size: %zu, bShutdown: %d", queue.size(), bShutdown);
+            return !queue.empty() || bShutdown;
+        });
+        if (bShutdown && queue.empty()) {
+            return false;
+        }
+
+        // why? save it to file
+        while (bShutdown && !queue.empty()) {
+            elem = queue.front();
+            queue.pop();
+            return false;
+        }
+
+        elem = std::move(queue.front());
+        queue.pop();
+        return true;
+    }
+
+
+    void shutdown()
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        bShutdown = true;
+        cv.notify_all();
+    }
+};
 
 struct AsyncLogControl
 {
@@ -253,6 +256,9 @@ struct AsyncLogControl
     }
 };
 
+
+#pragma endregion
+//----------------------
 
 
 struct LoggerBase
