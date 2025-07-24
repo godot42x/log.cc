@@ -27,5 +27,11 @@
     do {                                                                                 \
         COMPILER_WARNING("WARNING: UNIMPLEMENTED at " __FILE__ ":" TO_STRING(__LINE__)); \
         fprintf(stderr, "TODO unimplemented: %s:%d\n", __FILE__, __LINE__);              \
-        assert(0);                                                                       \
+        assert(0);                                            \
+    } while (0)
+
+#define UNREACHABLE()                                                \
+    do {                                                             \
+        fprintf(stderr, "unreachable: %s:%d\n", __FILE__, __LINE__); \
+        assert(0);                                            \
     } while (0)

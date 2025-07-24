@@ -12,16 +12,23 @@ do
 
     add_includedirs("./src/include/", { public = true })
 
+
+    LogccHasPrint = false
+
     on_config(function(target)
         if is_host("window") then
             -- Check if the /Zc:preprocessor flag is not added
-            cprint(
-                '${yellow}' ..
-                '[WARNING] This project/package/plugin which name is [' .. target:name() .. ']' ..
-                'Just add "/Zc:preprocessor" to the whole compiler environment\n' ..
-                '\tBecause you maybe use the msvc.' ..
-                'And the __VA_OPT__ is required by this flag...'
-            )
+
+            if not LogccHasPrint then
+                LogccHasPrint = true
+                cprint(
+                    '${yellow}' ..
+                    '[WARNING] This project/package/plugin which name is [' .. target:name() .. ']' ..
+                    'Just add "/Zc:preprocessor" to the whole compiler environment\n' ..
+                    '\tBecause you maybe use the msvc.' ..
+                    'And the __VA_OPT__ is required by this flag...'
+                )
+            end
 
             if target:get("kind") == "shared" then
                 print(target:name(), "with microshit rule >>")
