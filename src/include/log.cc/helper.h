@@ -29,3 +29,11 @@
         fprintf(stderr, "TODO unimplemented: %s:%d\n", __FILE__, __LINE__);              \
         assert(0);                                                                       \
     } while (0)
+
+#define UNREACHABLE()                                                \
+    do {                                                             \
+        fprintf(stderr, "unreachable: %s:%d\n", __FILE__, __LINE__); \
+        assert(0);                                                   \
+    } while (0)
+
+#define TODO(msg) COMPILER_WARNING("@TODO " #msg "(" __FILE__ ":" TO_STRING(__LINE__) ")")
