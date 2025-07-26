@@ -24,7 +24,7 @@ enum T
     Fatal = 600,
 };
 
-extern std::string_view toString(LogLevel::T level);
+extern LOG_CC_API std::string_view toString(LogLevel::T level);
 
 
 enum ETerminalColor
