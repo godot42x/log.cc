@@ -28,6 +28,7 @@ TOP_LEVEL_NAMESPACE_BEGIN
 
 
 extern std::string LOG_CC_API getCurentTimeStr();
+// #define LOG_CC_PROFILE_ENABLE
 
 
 
@@ -325,7 +326,10 @@ struct LOG_CC_API SyncLogger : public LoggerBase
 
     void log(LogLevel::T level, std::string_view msg, std::source_location location = std::source_location::current())
     {
-
+#ifdef LOG_CC_PROFILE_ENABLE
+        using clock_t = std::chrono::steady_clock;
+        auto now      = clock_t::now();
+#endif
         if (level < config.logLevel) {
             return;
         }
@@ -346,6 +350,11 @@ struct LOG_CC_API SyncLogger : public LoggerBase
         }
         // reset io
         bProcessing.store(false);
+#ifdef LOG_CC_PROFILE_ENABLE
+        auto gap = clock_t::now();
+        auto ns  = std::chrono::duration_cast<std::chrono::nanoseconds>(gap - now).count();
+        printf("cost: %f ms(%lld ns)\n", (double)ns / 1000000.0, ns);
+#endif
     }
 };
 
