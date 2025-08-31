@@ -11,10 +11,10 @@
 #include <queue>
 #include <source_location>
 
+#include <format>
 #include <fstream>
 #include <unordered_map>
 #include <vector>
-#include <format>
 
 
 
@@ -213,7 +213,7 @@ struct AsyncLogControl
 
         auto flushTask = [this]() {
             static auto last = std::chrono::system_clock::now();
-            int         gap  = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - last).count();
+            std::size_t gap  = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - last).count();
             if (gap >= flushIntervalSec) {
                 for (auto &fileAppender : fileAppenders) {
                     fileAppender.flush();
@@ -261,7 +261,7 @@ struct AsyncLogControl
 //----------------------
 
 
-struct LoggerBase
+struct LOG_CC_API LoggerBase
 {
     Config          config;
     ConsoleAppender consoleAppender;
@@ -300,7 +300,7 @@ struct LOG_CC_API AsyncLogger : public LoggerBase
         if (level < config.logLevel) {
             return;
         }
-        std::string output(512, '\0');
+        std::string output;
         if (formatter(config, output, level, msg, location)) {
             logCore->push(std::move(output), level);
         }
@@ -329,7 +329,7 @@ struct LOG_CC_API SyncLogger : public LoggerBase
         if (level < config.logLevel) {
             return;
         }
-        std::string output(512, '\0');
+        std::string output;
         formatter(config, output, level, msg, location);
 
         // wait io
