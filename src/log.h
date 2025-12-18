@@ -18,7 +18,6 @@
 
 
 
-#include "../base.h"
 #include "base.h"
 #include "log_level.h"
 
@@ -192,6 +191,10 @@ struct MessageQueue
 
 struct AsyncLogControl
 {
+    AsyncLogControl(const AsyncLogControl &)                     = delete;
+    AsyncLogControl(AsyncLogControl &&)                          = delete;
+    AsyncLogControl          &operator=(const AsyncLogControl &) = delete;
+    AsyncLogControl          &operator=(AsyncLogControl &&)      = delete;
     std::vector<FileAppender> fileAppenders;
     ConsoleAppender           consoleAppender;
 
@@ -308,13 +311,13 @@ struct LOG_CC_API AsyncLogger : public LoggerBase
     }
 };
 
-struct LOG_CC_API SyncLogger : public LoggerBase
+struct SyncLogger : public LoggerBase
 {
     std::atomic<bool>         bProcessing = false;
     std::vector<FileAppender> fileAppenders;
 
 
-    SyncLogger()
+    LOG_CC_API SyncLogger()
         : LoggerBase()
     {
     }
@@ -324,7 +327,7 @@ struct LOG_CC_API SyncLogger : public LoggerBase
     SyncLogger(const SyncLogger &)                = delete;
     SyncLogger &operator=(const SyncLogger &)     = delete;
 
-    void log(LogLevel::T level, std::string_view msg, std::source_location location = std::source_location::current())
+    LOG_CC_API void log(LogLevel::T level, std::string_view msg, std::source_location location = std::source_location::current())
     {
 #ifdef LOG_CC_PROFILE_ENABLE
         using clock_t = std::chrono::steady_clock;
