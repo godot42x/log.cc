@@ -57,14 +57,18 @@ struct ConsoleAppender
     {
         static const std::string_view resetColor = LogLevel::color2TerminalColorCode.find(LogLevel::ETerminalColor::Reset)->second;
         const std::string_view        color      = LogLevel::level2TerminalColorCode.find(elem.level)->second;
-        out << color << elem.msg << resetColor;
+        out.write(color.data(), color.size());
+        out.write(elem.msg.data(), elem.msg.size());
+        out.write(resetColor.data(), resetColor.size());
     }
 
     void operator<<(const MessageElem &elem)
     {
         static const std::string_view resetColor = LogLevel::color2TerminalColorCode.find(LogLevel::ETerminalColor::Reset)->second;
         const std::string_view        color      = LogLevel::level2TerminalColorCode.find(elem.level)->second;
-        out << color << elem.msg << resetColor;
+        out.write(color.data(), color.size());
+        out.write(elem.msg.data(), elem.msg.size());
+        out.write(resetColor.data(), resetColor.size());
     }
 };
 
@@ -191,6 +195,7 @@ struct MessageQueue
 
 struct AsyncLogControl
 {
+    AsyncLogControl()                                    = default;
     AsyncLogControl(const AsyncLogControl &)                     = delete;
     AsyncLogControl(AsyncLogControl &&)                          = delete;
     AsyncLogControl          &operator=(const AsyncLogControl &) = delete;
@@ -345,7 +350,7 @@ struct SyncLogger : public LoggerBase
         bProcessing.store(true);
 
         {
-            MessageElem elem{level, std::move(output)};
+            MessageElem elem{.level = level, .msg = std::move(output)};
             consoleAppender << elem;
             for (auto &fileAppender : fileAppenders) {
                 fileAppender << elem;
