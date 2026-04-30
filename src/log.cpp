@@ -1,5 +1,6 @@
 
 #include <cassert>
+#include <ctime>
 #include <format>
 #include <unordered_map>
 
@@ -11,12 +12,26 @@ TOP_LEVEL_NAMESPACE_BEGIN
 
 std::string getCurentTimeStr()
 {
+#if defined(_LIBCPP_VERSION)
+    // libc++ (Apple clang 26 at time of writing) ships std::chrono::zoned_time
+    // / std::chrono::current_zone behind _LIBCPP_ENABLE_EXPERIMENTAL. Fall back
+    // to the POSIX localtime_r path so builds work out of the box. Produces the
+    // same "%Y-%m-%d %H:%M:%S" output as the libstdc++/MSVC path below.
+    auto now = std::chrono::system_clock::now();
+    auto tt  = std::chrono::system_clock::to_time_t(now);
+    std::tm tm{};
+    ::localtime_r(&tt, &tm);
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+    return buf;
+#else
     auto now = std::chrono::zoned_time{
         std::chrono::current_zone(),
         std::chrono::system_clock::now(),
     };
 
     return std::format("{:%Y-%m-%d %H:%M:%S}", now);
+#endif
 }
 
 void Config::setLogLevel(LogLevel::T level)

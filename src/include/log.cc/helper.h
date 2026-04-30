@@ -3,7 +3,7 @@
 
 #if _WIN32
     #define __FUNCTION_SIG __FUNCSIG__
-#elif __linux__
+#elif defined(__linux__) || defined(__APPLE__)
     #define __FUNCTION_SIG __PRETTY_FUNCTION__
 #else
     #error Need your implementation
