@@ -7,7 +7,13 @@
         #define LOG_CC_API __declspec(dllimport)
     #endif
 #else
-    #define LOG_CC_API extern
+    // On ELF / Mach-O, default visibility works out of the box for static libs
+    // and is what clang uses by default for shared libs unless -fvisibility=hidden
+    // is set. Expanding to `extern` (as we did before) turned
+    // `struct LOG_CC_API debug { ... }` into `struct extern debug { ... }`,
+    // which clang rejects; leave the attribute empty here and add
+    // `extern` explicitly where variables actually need it.
+    #define LOG_CC_API
 #endif
 
 

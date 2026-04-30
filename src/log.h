@@ -10,6 +10,7 @@
 #include <mutex>
 #include <queue>
 #include <source_location>
+#include <thread>
 
 #include <format>
 #include <fstream>
