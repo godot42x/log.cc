@@ -1,6 +1,9 @@
 --print("Check if did not add 'fmt' packages in your toplevel xmake.lua")
 
-add_cxflags("/Zc:preprocessor")
+if is_plat("windows") then
+    add_cxflags("/Zc:preprocessor")
+end
+
 target("log.cc")
 do
     set_kind("shared")
