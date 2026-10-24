@@ -6,7 +6,7 @@ end
 
 target("log.cc")
 do
-    set_kind("shared")
+    set_kind(is_plat("wasm") and "static" or "shared")
 
     set_languages("c++20")
 
