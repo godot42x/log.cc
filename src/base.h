@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef _WIN32
-    #ifdef BUILD_SHARED_LOG_CC
+    #ifdef LOG_CC_BUILD_SHARED
         #define LOG_CC_API __declspec(dllexport)
     #else
         #define LOG_CC_API __declspec(dllimport)

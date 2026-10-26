@@ -34,12 +34,12 @@ do
             end
 
             if target:get("kind") == "shared" then
-                print(target:name(), "with microshit rule >>")
-                local normalizeName = target:name():upper():replace("%.", '_')
-                print("normalizedName:", normalizeName)
-                local defines = "BUILD_SHARED_" .. normalizeName .. "=1"
-                print("--" .. target:name(), "add defines " .. defines)
-                target:add("defines", defines)
+                -- Named after the library that owns it, not after a generic BUILD_SHARED_* shape: this is a
+                -- third-party-shaped plugin with no YA_ semantics, and a bare BUILD_SHARED_ family is
+                -- exactly the prefix that collides with another library's header. Literal rather than
+                -- derived from target:name() so the emitter and the reader in src/base.h are one string
+                -- that a grep (and Script/automation/check_macro_prefix.py) can match.
+                target:add("defines", "LOG_CC_BUILD_SHARED=1")
             end
         end
     end)
