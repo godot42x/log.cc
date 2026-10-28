@@ -329,7 +329,7 @@ struct SyncLogger : public LoggerBase
     {
     }
 
-    SyncLogger(SyncLogger &&) noexcept            = default;
+    // SyncLogger(SyncLogger &&) noexcept            = default;
     SyncLogger &operator=(SyncLogger &&) noexcept = delete;
     SyncLogger(const SyncLogger &)                = delete;
     SyncLogger &operator=(const SyncLogger &)     = delete;

@@ -37,7 +37,7 @@ struct LOG_CC_API debug
 {
     std::ostream &out = std::cout;
 
-    debug(std::string_view sig = "-", std::source_location location = std::source_location::current())
+    debug(std::string_view sig = "-", [[maybe_unused]] std::source_location location = std::source_location::current())
     {
 #if NDEBUG
         out << sig << ' ';
